@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Simulador de Vectores UAEH - AutoEscala</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+  <style>
+    html, body { height: 100%; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+    body { background: linear-gradient(135deg, #e0f2f1 0%, #b2dfdb 100%); display: flex; justify-content: center; align-items: center; }
+    .contenedor-principal { display: grid; grid-template-columns: 350px 650px; gap: 20px; background: white; padding: 25px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.15); }
+    #panel-controles { border-right: 2px solid #eee; padding-right: 20px; display: flex; flex-direction: column; max-height: 85vh; overflow-y: auto; }
+    h2 { color: #00695c; text-align: center; border-bottom: 2px solid #4CAF50; padding-bottom: 10px; margin-top: 0; }
+    .menu-cantidad { background: #f1f8e9; padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #c5e1a5; }
+    .entrada-vector { border-left: 4px solid #4CAF50; padding-left: 10px; margin-bottom: 15px; background: #fafafa; padding: 10px; border-radius: 5px; }
+    .entrada-vector label { display: block; font-size: 0.75rem; color: #666; margin-top: 5px; }
+    input { width: 100%; padding: 8px; margin: 2px 0 8px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+    button { width: 100%; background: #2e7d32; color: white; border: none; padding: 12px; font-weight: bold; cursor: pointer; border-radius: 8px; margin-top: 10px; }
+    button:hover { background: #1b5e20; }
+    #zona-explicacion { background-color: #fff9c4; padding: 15px; margin-top: 15px; border-radius: 10px; border-left: 5px solid #fbc02d; font-size: 0.85rem; min-height: 100px; }
+    #area-dibujo { display: flex; justify-content: center; align-items: center; background: #f9f9f9; border-radius: 12px; }
+  </style>
+</head>
+<body>
+
+  <div class="contenedor-principal">
+    <div id="panel-controles">
+      <h2>Simulador de suma y resta de vectores UAEH</h2>
+      <div class="menu-cantidad">
+        <label>¿Cuántos vectores tienes?</label>
+        <input type="number" id="numVectores" value="2" min="1" max="100">
+        <button onclick="generarCampos()">Crear Campos</button>
+      </div>
+      <div id="contenedor-entradas"></div>
+      <button onclick="iniciarSimulacion()" style="background: #00695c;">¡Calcular y Animar!</button>
+      <div id="zona-explicacion">Resultados aparecerán aquí...</div>
+    </div>
+    <div id="area-dibujo"></div>
+  </div>
+
+  <script>
+    let animando = false;
+    let t = 0;
+    let vectores = [];
+    let escala = 1;
+
+    function generarCampos() {
+      const n = parseInt(document.getElementById('numVectores').value);
+      const contenedor = document.getElementById('contenedor-entradas');
+      contenedor.innerHTML = ""; 
+      for (let i = 1; i <= n; i++) {
+        contenedor.innerHTML += `
+          <div class="entrada-vector">
+            <strong>Vector ${i}</strong>
+            <label>Magnitud:</label>
+            <input type="number" id="mag${i}" value="${20 * i}">
+            <label>Ángulo (°):</label>
+            <input type="number" id="ang${i}" value="${15 * i}">
+          </div>`;
+      }
+    }
+
+    function setup() {
+      let canvas = createCanvas(650, 500);
+      canvas.parent('area-dibujo');
+      angleMode(DEGREES);
+      generarCampos();
+    }
+
+    function iniciarSimulacion() {
+      const n = parseInt(document.getElementById('numVectores').value);
+      vectores = [];
+      let maxX = 0, maxY = 0;
+      let currX = 0, currY = 0;
+
+      // Primero: Guardamos datos y calculamos límites para la Auto-Escala
+      for (let i = 1; i <= n; i++) {
+        let m = float(document.getElementById(`mag${i}`).value) || 0;
+        let a = float(document.getElementById(`ang${i}`).value) || 0;
+        vectores.push({ m, a });
+        
+        currX += m * cos(a);
+        currY += m * sin(a);
+        
+        // Buscamos el valor más lejano que alcanzará el dibujo
+        maxX = max(maxX, abs(currX));
+        maxY = max(maxY, abs(currY));
+      }
+
+      // Calculamos escala: queremos que el vector más largo use el 80% del canvas
+      let margen = 0.8;
+      let escalaX = (width / 2 * margen) / (maxX || 1);
+      let escalaY = (height / 2 * margen) / (maxY || 1);
+      escala = min(escalaX, escalaY); // Usamos la escala más pequeña para que nada se salga
+
+      t = 0;
+      animando = true;
+    }
+
+    function draw() {
+      background(255);
+      push();
+      resetMatrix();
+      textAlign(RIGHT, BOTTOM);
+      textSize(12); fill(150); noStroke();
+      text("Desarrollado por: Juárez Jeovani & Victorino Reding Salvatore", width - 15, height - 10);
+      pop();
+
+      translate(width/2, height/2);
+      stroke(220); strokeWeight(1);
+      line(-width, 0, width, 0); line(0, -height, 0, height);
+
+      if (animando) {
+        let acumuladoX = 0;
+        let acumuladoY = 0;
+        let datosVectores = [];
+
+        for (let i = 0; i < vectores.length; i++) {
+          let v = vectores[i];
+          let vx = v.m * cos(v.a) * escala;
+          let vy = -v.m * sin(v.a) * escala;
+          let paso = constrain(t - i, 0, 1);
+
+          if (paso > 0) {
+            let colorVector = (i % 2 == 0 ? "red" : "blue");
+            stroke(colorVector); strokeWeight(2.5);
+            line(acumuladoX, acumuladoY, acumuladoX + vx * paso, acumuladoY + vy * paso);
+            
+            if (paso === 1) {
+              datosVectores.push({x: acumuladoX, y: acumuladoY, vx, vy, color: colorVector, m: v.m, a: v.a});
+            }
+            acumuladoX += vx;
+            acumuladoY += vy;
+          }
+        }
+
+        datosVectores.forEach(d => {
+          dibujarPunta(d.x + d.vx, d.y + d.vy, atan2(d.vy, d.vx), d.color);
+          // Solo dibujar texto si no hay demasiados vectores (evitar amontonamiento)
+          if(vectores.length <= 15) dibujarEtiqueta(d.x + d.vx/2, d.y + d.vy/2, `${d.m}u, ${d.a}°`, d.color);
+        });
+
+        if (t > vectores.length) {
+          let pasoR = constrain(t - vectores.length, 0, 1);
+          stroke("green"); strokeWeight(3);
+          line(0, 0, acumuladoX * pasoR, acumuladoY * pasoR);
+          
+          if (pasoR === 1) {
+            let realX = acumuladoX / escala;
+            let realY = -acumuladoY / escala;
+            let magR = sqrt(pow(realX, 2) + pow(realY, 2));
+            let angR = atan2(realY, realX);
+            if(angR < 0) angR += 360;
+
+            dibujarPunta(acumuladoX, acumuladoY, atan2(-realY, realX), "green");
+            dibujarEtiqueta(acumuladoX/2, acumuladoY/2, `R: ${magR.toFixed(1)}u`, "green");
+
+            document.getElementById('zona-explicacion').innerHTML = 
+              `<strong>Suma Final (Automática):</strong><br>
+               Magnitud: ${magR.toFixed(2)} u<br>
+               Ángulo: ${angR.toFixed(1)}°<br>
+               Rx: ${realX.toFixed(1)} | Ry: ${realY.toFixed(1)}`;
+          }
+        }
+        t += 0.1; // Velocidad ajustada para muchos vectores
+      }
+    }
+
+    function dibujarPunta(x, y, angulo, col) {
+      push(); translate(x, y); rotate(angulo);
+      stroke(col); strokeWeight(2);
+      line(0, 0, -10, -5); line(0, 0, -10, 5);
+      pop();
+    }
+
+    function dibujarEtiqueta(x, y, txt, col) {
+      push(); textSize(9); let tw = textWidth(txt);
+      noStroke(); fill(255, 230);
+      rectMode(CENTER); rect(x, y - 10, tw + 4, 12, 2);
+      fill(col); textAlign(CENTER, CENTER);
+      text(txt, x, y - 10); pop();
+    }
+  </script>
+</body>
+</html>
